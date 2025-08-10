@@ -1,23 +1,9 @@
-# WebGL Example
-
-[![Demo](https://img.shields.io/website?label=demo&url=https%3A%2F%2Fexamples.yew.rs%2Fwebgl)](https://examples.yew.rs/webgl)
-
-This is a simple demo using WebGL with Yew to initialize the GL context, create
-a render loop, and draw to the canvas with basic shaders using `web-sys`.
-
-## Concepts
-
-- Accessing a DOM element using [`NodeRef`](https://yew.rs/docs/concepts/components/refs/).
-- Using Javascript APIs with `web-sys`.
-
-## Improvements
-
-- Use a much more flashy shader
-
-## Running
+This is a really basic webGL display to work directly with the fluid simulation logic without the RP2350A hardware.  It's useful because it shows the individual particles.
 
 Run this application with the trunk development server:
 
 ```bash
 trunk serve --open
 ```
+
+use the arrow keys to change the direction of gravity

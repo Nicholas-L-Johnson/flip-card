@@ -2,11 +2,14 @@ use std::cell::RefCell;
 use std::f32::consts::PI;
 use std::rc::Rc;
 
+
 use fluid_sim::FluidSimulation::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, WebGlRenderingContext as GL, WebGlRenderingContext, window};
+use web_sys::{KeyboardEvent,HtmlCanvasElement, WebGlRenderingContext as GL, WebGlRenderingContext, window};
 use yew::{Component, Context, Html, NodeRef, html};
+
+
 
 // Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
 pub struct App {
@@ -23,9 +26,17 @@ impl Component for App {
         }
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+
+        let on_key_press = ctx.link().callback(|event: KeyboardEvent| {
+            if event.key() == "Enter" {
+                // Handle Enter key press
+            } else {
+                // Handle other key presses
+            }
+        });
         html! {
-            <canvas width="600" height="600" ref={self.node_ref.clone()} />
+            <canvas width="600" height="600" tabindex="0" ref={self.node_ref.clone()} />
         }
     }
 
@@ -42,6 +53,7 @@ impl Component for App {
         // resizing the rendering area when the window or canvas element are resized, as well as
         // for making GL calls.
         let canvas = self.node_ref.cast::<HtmlCanvasElement>().unwrap();
+        canvas.focus().unwrap();
         let gl: GL = canvas
             .get_context("webgl")
             .unwrap()
@@ -62,6 +74,43 @@ impl App {
 
     fn render_gl(gl: WebGlRenderingContext) {
         let mut scene = Scene::setupScene(400);
+        let gravity = Rc::new(RefCell::new([-10.0,-10.0]));
+        {
+            let gravity = gravity.clone();
+            let keydown_closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+                event.prevent_default();
+                let mut g = gravity.borrow_mut();
+                match event.key().as_str() {
+                    "ArrowUp" => {
+                        web_sys::console::log_1(&"Keyup".into());
+                        g[0] = 200.0;
+                        g[1] = 0.0;
+                    }
+                    "ArrowDown" => {
+                        g[0] = -200.0;
+                        g[1] = 0.0;
+                    }
+                    "ArrowLeft" => {
+                        g[0] = 0.0;
+                        g[1] = -200.0;
+                    }
+                    "ArrowRight" => {
+                        g[0] = 0.0;
+                        g[1] = 200.0;
+                    }
+                    _ => {}
+                }
+            }) as Box<dyn FnMut(_)>);
+
+        
+            window()
+                .unwrap()
+                .add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref())
+                .unwrap();
+        web_sys::console::log_1(&"Keydown listener added".into());
+            keydown_closure.forget(); // Don't drop the closure
+        }
+        
         // This should log only once -- not once per frame
 
         let mut timestamp = 0.0;
@@ -112,16 +161,16 @@ impl App {
         *cb.borrow_mut() = Some(Closure::wrap(Box::new({
             let cb = cb.clone();
             move || {
-                scene.set_gravity([-10.0, -10.0]);
+                scene.set_gravity(*gravity.borrow());
                 scene.simulate();
                 // This should repeat every frame
                 timestamp += 20.0;
                 let mut vertices: Vec<f32> = Vec::new();
                 let mut count = 0;
-                make_rectangle(&mut vertices, &mut count, 1.685, 0.005, 0.0, -0.84);
-                make_rectangle(&mut vertices, &mut count, 1.685, 0.005, 0.0, 0.84);
-                make_rectangle(&mut vertices, &mut count, 0.005, 1.685, -0.84, 0.0);
-                make_rectangle(&mut vertices, &mut count, 0.005, 1.685, 0.84, 0.0);
+                make_rectangle(&mut vertices, &mut count, 1.685, 0.005, 0.04, -0.80);
+                make_rectangle(&mut vertices, &mut count, 1.685, 0.005, 0.04, 0.88);
+                make_rectangle(&mut vertices, &mut count, 0.005, 1.685, -0.80, 0.04);
+                make_rectangle(&mut vertices, &mut count, 0.005, 1.685, 0.88, 0.04);
                 for i in 0..scene.fluid.numParticles {
                     make_circle(
                         &mut vertices,

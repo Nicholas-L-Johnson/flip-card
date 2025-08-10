@@ -1110,7 +1110,7 @@ pub mod FluidSimulation {
             // frameNr : 0,
             let frameNr = 0;
             // overRelaxation : 1.9,
-            let _overRelaxation = 0.5;
+            let _overRelaxation = 1.9;
             // compensateDrift : true,
             let compensateDrift = true;
             // separateParticles : true,
@@ -1119,13 +1119,13 @@ pub mod FluidSimulation {
             let paused = false;
 
             // scene.overRelaxation = 1.9;
-            let overRelaxation = 0.5;
+            let overRelaxation = 1.9;
             // scene.dt = 1.0 / 60.0;
             let dt = 1.0 / 60.0;
             // scene.numPressureIters = 50;
             let numPressureIters = 10;
             // scene.numParticleIters = 2;
-            let numParticleIters = 1;
+            let numParticleIters = 2;
 
             // var res = 100;
             let res = 23.0;
