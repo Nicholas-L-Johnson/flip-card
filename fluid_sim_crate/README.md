@@ -1,3 +1,4 @@
+## Fluid Simulation (the part with the math)
 This crate has all the logic for the FLIP algorithm.
 
 I'd like to get this to some reasonable state in the future so it could be used in other projects, but there is a lot of work to do here.
