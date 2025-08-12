@@ -1060,8 +1060,6 @@ pub mod FluidSimulation {
                 self.handleParticleCollisions();
                 self.pushParticlesApart(numParticleIters);
                 self.handleParticleCollisions();
-                self.pushParticlesApart(numParticleIters);
-                self.handleParticleCollisions();
                 // // this.handleParticleCollisions(obstacleX, abstacleY, obstacleRadius)
                 // // this.transferVelocities(true);
                 self.transferVelocities(true, 1.9);
@@ -1125,7 +1123,7 @@ pub mod FluidSimulation {
             // scene.numPressureIters = 50;
             let numPressureIters = 10;
             // scene.numParticleIters = 2;
-            let numParticleIters = 2;
+            let numParticleIters = 1;
 
             // var res = 100;
             let res = 23.0;

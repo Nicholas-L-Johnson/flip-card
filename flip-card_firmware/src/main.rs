@@ -671,6 +671,9 @@ async fn drive_screen(
         if FRAME_DATA_SIGNAL.signaled() {
             screen.yx_grid = FRAME_DATA_SIGNAL.wait().await;
             frame_count = 0;
+            if screen.yx_grid == [[false; 21]; 21] {
+                Timer::after_millis(3000).await;
+            }
         } else {
             frame_count += 1;
         }
@@ -761,7 +764,7 @@ async fn monitor_accelerometer(
             y_counter += 1;
             if y_counter > 1000 {
                 // embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
-                Timer::after_millis(3000).await;
+                cortex_m::asm::udf();
             }
         } else {
             if y_counter > 0 {
@@ -808,6 +811,9 @@ async fn simulation_update() {
             scene.simulate();
             FRAME_DATA_SIGNAL.signal(scene.get_output());
         } else {
+            if miss_count > 9 {
+                cortex_m::asm::udf();
+            }
             // ACCEL_DATA_SIGNAL.wait().await;
         }
     }
@@ -902,5 +908,5 @@ fn setup_pio_2(
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     // embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
-    loop {}
+    cortex_m::asm::udf();
 }
