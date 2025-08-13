@@ -177,37 +177,51 @@ impl Screen {
         }
     }
     fn post_process(&mut self) {
+        // Temporary grid to track which liquid cells will become stable/locked this frame
         let mut temp_yx_lock_grid = [[false; 21]; 21];
-        for i in 0..self.yx_grid.len() {
-            for j in 0..self.yx_grid[0].len() {
-                if self.yx_grid[i][j] {
-                    if i == 20 || self.yx_grid[i + 1][j] {
-                        if i == 0 || self.yx_grid[i - 1][j] {
-                            if j == 20 || self.yx_grid[i][j + 1] {
-                                if j == 0 || self.yx_grid[i][j - 1] {
-                                    temp_yx_lock_grid[i][j] = true
-                                }
-                            }
-                        }
-                    }
+        
+        // PHASE 1: Liquid Stabilization Detection
+        // Find liquid cells that are completely contained (surrounded by liquid or boundaries)
+        // These cells will become "stable" and won't flow away in future iterations
+        for i in 0..21 {
+            for j in 0..21 {
+                if self.yx_grid[i][j] {  // Only process existing liquid cells
+                    // Check if liquid is completely contained (can't flow in any direction)
+                    // A cell is contained if all 4 neighbors are either liquid or boundaries
+                    temp_yx_lock_grid[i][j] = 
+                        (i == 20 || self.yx_grid[i + 1][j]) &&  // Bottom: boundary or liquid
+                        (i == 0  || self.yx_grid[i - 1][j]) &&  // Top: boundary or liquid
+                        (j == 20 || self.yx_grid[i][j + 1]) &&  // Right: boundary or liquid
+                        (j == 0  || self.yx_grid[i][j - 1]);    // Left: boundary or liquid
                 }
             }
         }
-        for i in 0..self.yx_grid.len() {
-            for j in 0..self.yx_grid[0].len() {
-                if self.yx_lock_grid[i][j] {
-                    if i == 20 || self.yx_grid[i + 1][j] {
-                        if i == 0 || self.yx_grid[i - 1][j] {
-                            if j == 20 || self.yx_grid[i][j + 1] {
-                                if j == 0 || self.yx_grid[i][j - 1] {
-                                    self.yx_grid[i][j] = true;
-                                }
-                            }
-                        }
+        
+        // PHASE 2: Stable Liquid Reinforcement
+        // For liquid that was stable in the previous frame, check if it should remain liquid
+        // This prevents stable liquid from disappearing due to flow dynamics
+        for i in 0..21 {
+            for j in 0..21 {
+                if self.yx_lock_grid[i][j] {  // Process previously stable liquid
+                    // Re-check if this stable liquid is still contained
+                    let is_surrounded = 
+                        (i == 20 || self.yx_grid[i + 1][j]) &&
+                        (i == 0  || self.yx_grid[i - 1][j]) &&
+                        (j == 20 || self.yx_grid[i][j + 1]) &&
+                        (j == 0  || self.yx_grid[i][j - 1]);
+                    
+                    if is_surrounded {
+                        // Reinforce: ensure this cell remains liquid (prevent evaporation/flow)
+                        self.yx_grid[i][j] = true;
                     }
+                    // If not surrounded anymore, let natural flow dynamics handle it
+                    // (don't force it to empty - preserve liquid conservation)
                 }
             }
         }
+        
+        // Update stability tracking for next iteration
+        // Replace old stable cell tracking with newly calculated stable cells
         self.yx_lock_grid = temp_yx_lock_grid;
     }
     fn make_output(&mut self) {
