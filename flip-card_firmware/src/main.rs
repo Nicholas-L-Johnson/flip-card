@@ -163,7 +163,7 @@ struct Screen {
     yx_lock_grid: [[bool; 21]; 21],
     index_grid: [bool; 484],
     out_array: [u32; 506],
-    out_array_2: Vec<u32, 1452>,
+    out_array_2: Vec<u32, 1323>,
 }
 impl Screen {
     fn fill_index(&mut self) {
@@ -179,37 +179,37 @@ impl Screen {
     fn post_process(&mut self) {
         // Temporary grid to track which liquid cells will become stable/locked this frame
         let mut temp_yx_lock_grid = [[false; 21]; 21];
-        
+
         // PHASE 1: Liquid Stabilization Detection
         // Find liquid cells that are completely contained (surrounded by liquid or boundaries)
         // These cells will become "stable" and won't flow away in future iterations
         for i in 0..21 {
             for j in 0..21 {
-                if self.yx_grid[i][j] {  // Only process existing liquid cells
+                if self.yx_grid[i][j] {
+                    // Only process existing liquid cells
                     // Check if liquid is completely contained (can't flow in any direction)
                     // A cell is contained if all 4 neighbors are either liquid or boundaries
-                    temp_yx_lock_grid[i][j] = 
-                        (i == 20 || self.yx_grid[i + 1][j]) &&  // Bottom: boundary or liquid
+                    temp_yx_lock_grid[i][j] = (i == 20 || self.yx_grid[i + 1][j]) &&  // Bottom: boundary or liquid
                         (i == 0  || self.yx_grid[i - 1][j]) &&  // Top: boundary or liquid
                         (j == 20 || self.yx_grid[i][j + 1]) &&  // Right: boundary or liquid
-                        (j == 0  || self.yx_grid[i][j - 1]);    // Left: boundary or liquid
+                        (j == 0  || self.yx_grid[i][j - 1]); // Left: boundary or liquid
                 }
             }
         }
-        
+
         // PHASE 2: Stable Liquid Reinforcement
         // For liquid that was stable in the previous frame, check if it should remain liquid
         // This prevents stable liquid from disappearing due to flow dynamics
         for i in 0..21 {
             for j in 0..21 {
-                if self.yx_lock_grid[i][j] {  // Process previously stable liquid
+                if self.yx_lock_grid[i][j] {
+                    // Process previously stable liquid
                     // Re-check if this stable liquid is still contained
-                    let is_surrounded = 
-                        (i == 20 || self.yx_grid[i + 1][j]) &&
-                        (i == 0  || self.yx_grid[i - 1][j]) &&
-                        (j == 20 || self.yx_grid[i][j + 1]) &&
-                        (j == 0  || self.yx_grid[i][j - 1]);
-                    
+                    let is_surrounded = (i == 20 || self.yx_grid[i + 1][j])
+                        && (i == 0 || self.yx_grid[i - 1][j])
+                        && (j == 20 || self.yx_grid[i][j + 1])
+                        && (j == 0 || self.yx_grid[i][j - 1]);
+
                     if is_surrounded {
                         // Reinforce: ensure this cell remains liquid (prevent evaporation/flow)
                         self.yx_grid[i][j] = true;
@@ -219,7 +219,7 @@ impl Screen {
                 }
             }
         }
-        
+
         // Update stability tracking for next iteration
         // Replace old stable cell tracking with newly calculated stable cells
         self.yx_lock_grid = temp_yx_lock_grid;
@@ -245,17 +245,138 @@ impl Screen {
             // counter += 1;
         }
     }
+    /// set bits to send by DMA.  The output format is a set of 3 u32 values
+    /// the first is the pins register, the other two are pindirs register
+
     fn make_output_2(&mut self) {
+        //these are the pin combinations that don't corrospond to an LED.
+        let mut ignore_table: [[i32; 2]; 22] = [[-1; 2]; 22];
+        ignore_table[0] = [1, 3];
+        ignore_table[2] = [3, 5];
+        ignore_table[4] = [5, 7];
+        ignore_table[6] = [7, 9];
+        ignore_table[8] = [9, 11];
+        ignore_table[10] = [11, 13];
+        ignore_table[12] = [13, 15];
+        ignore_table[14] = [15, 17];
+        ignore_table[16] = [17, 19];
+        ignore_table[18] = [19, 21];
+        ignore_table[20] = [21, -1];
+
         self.out_array_2 = Vec::new();
         let mut index = 0;
+        // the order is [0,0],[0,1],[0,2],[0,3]...
+        // better order might be:
+        // [0,1],[1,2],[2,3],
+        // [0,2],[1,3],[2,4],
+        // [0,3],[1,4],[2,5],
+        // [0,4],[1,5],[2,6],
+        // ...
+        // [0,21],[2,0],[3,1]
+
+        // just make it static:
+        let directory = [
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 4],
+            [4, 5],
+            [5, 6],
+            [6, 7],
+            [7, 8],
+            [8, 9],
+            [9, 10],
+            [10, 11],
+            [11, 12],
+            [12, 13],
+            [13, 14],
+            [14, 15],
+            [15, 16],
+            [16, 17],
+            [17, 18],
+            [18, 19],
+            [19, 20],
+            [20, 21],
+            [0, 2],
+            [1, 3],
+            [2, 4],
+            [3, 5],
+            [4, 6],
+            [5, 7],
+            [6, 8],
+            [7, 9],
+            [8, 10],
+            [9, 11],
+            [10, 12],
+            [11, 13],
+            [12, 14],
+            [13, 15],
+            [14, 16],
+            [15, 17],
+            [16, 18],
+            [17, 19],
+            [18, 20],
+            [19, 21],
+            [20, 0],
+            [0, 3],
+            [1, 4],
+            [2, 5],
+            [3, 6],
+            [4, 7],
+            [5, 8],
+            [6, 9],
+            [7, 10],
+            [8, 11],
+            [9, 12],
+            [10, 13],
+            [11, 14],
+            [12, 15],
+            [13, 16],
+            [14, 17],
+            [15, 18],
+            [16, 19],
+            [17, 20],
+            [18, 21],
+            [19, 0],
+            [20, 1],
+            [0, 4],
+            [1, 5],
+            [2, 6],
+            [3, 7],
+            [4, 8],
+            [5, 9],
+            [6, 10],
+            [7, 11],
+            [8, 12],
+            [9, 13],
+            [10, 14],
+            [11, 15],
+            [12, 16],
+            [13, 17],
+            [14, 18],
+            [15, 19],
+            [16, 20],
+            [17, 21],
+            [18, 0],
+            [19, 1],
+            [20, 2],
+        ];
+
         for i in 0..BITS.len() {
             index += 1;
             for j in 0..BITS.len() {
                 if i != j {
-                    if self.index_grid[index] {
-                        self.out_array_2.push(BITS[i]).unwrap();
-                        self.out_array_2.push(BITS[i] | BITS[j]).unwrap();
-                        self.out_array_2.push(0).unwrap();
+                    if ignore_table[i][0] != j as i32 && ignore_table[i][1] != (j as i32) {
+                        // offset += 1;
+                        if self.index_grid[index] {
+                            // 1: sets the pins that are positive
+                            // 2: sets the pins that are outputs
+                            // delay 4  cycles
+                            // 3: makes everything into inputs
+                            self.out_array_2.push(BITS[i]).unwrap();
+                            self.out_array_2.push(BITS[i] | BITS[j]).unwrap();
+                            self.out_array_2.push(0).unwrap();
+                        }
                     }
                     index += 1;
                 }
@@ -777,8 +898,8 @@ async fn monitor_accelerometer(
         if y_val > 10 {
             y_counter += 1;
             if y_counter > 1000 {
-                // embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
-                cortex_m::asm::udf();
+                embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
+                // cortex_m::asm::udf();
             }
         } else {
             if y_counter > 0 {
@@ -921,6 +1042,6 @@ fn setup_pio_2(
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    // embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
+    embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
     cortex_m::asm::udf();
 }
