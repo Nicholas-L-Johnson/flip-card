@@ -1,8 +1,10 @@
 #![no_std]
 #![no_main]
 
+use core::cell::RefCell;
 use core::default;
 
+use cortex_m::interrupt::{self, Mutex};
 use embassy_executor::{Executor, Spawner};
 use embassy_futures::select::{Either::First, select};
 use embassy_rp::bind_interrupts;
@@ -70,6 +72,7 @@ static BITS: [u32; 22] = [
     BIT21, BIT20, BIT19, BIT18, BIT17, BIT16, BIT15, BIT14, BIT13, BIT12, BIT11, BIT10, BIT9, BIT8,
     BIT7, BIT6, BIT5, BIT4, BIT3, BIT2, BIT1, BIT0,
 ];
+static WATCHDOG: Mutex<RefCell<Option<Watchdog>>> = Mutex::new(RefCell::new(None));
 
 static LOOKUP_TABLE: [[usize; 21]; 21] = [
     [
@@ -179,37 +182,37 @@ impl Screen {
     fn post_process(&mut self) {
         // Temporary grid to track which liquid cells will become stable/locked this frame
         let mut temp_yx_lock_grid = [[false; 21]; 21];
-        
+
         // PHASE 1: Liquid Stabilization Detection
         // Find liquid cells that are completely contained (surrounded by liquid or boundaries)
         // These cells will become "stable" and won't flow away in future iterations
         for i in 0..21 {
             for j in 0..21 {
-                if self.yx_grid[i][j] {  // Only process existing liquid cells
+                if self.yx_grid[i][j] {
+                    // Only process existing liquid cells
                     // Check if liquid is completely contained (can't flow in any direction)
                     // A cell is contained if all 4 neighbors are either liquid or boundaries
-                    temp_yx_lock_grid[i][j] = 
-                        (i == 20 || self.yx_grid[i + 1][j]) &&  // Bottom: boundary or liquid
+                    temp_yx_lock_grid[i][j] = (i == 20 || self.yx_grid[i + 1][j]) &&  // Bottom: boundary or liquid
                         (i == 0  || self.yx_grid[i - 1][j]) &&  // Top: boundary or liquid
                         (j == 20 || self.yx_grid[i][j + 1]) &&  // Right: boundary or liquid
-                        (j == 0  || self.yx_grid[i][j - 1]);    // Left: boundary or liquid
+                        (j == 0  || self.yx_grid[i][j - 1]); // Left: boundary or liquid
                 }
             }
         }
-        
+
         // PHASE 2: Stable Liquid Reinforcement
         // For liquid that was stable in the previous frame, check if it should remain liquid
         // This prevents stable liquid from disappearing due to flow dynamics
         for i in 0..21 {
             for j in 0..21 {
-                if self.yx_lock_grid[i][j] {  // Process previously stable liquid
+                if self.yx_lock_grid[i][j] {
+                    // Process previously stable liquid
                     // Re-check if this stable liquid is still contained
-                    let is_surrounded = 
-                        (i == 20 || self.yx_grid[i + 1][j]) &&
-                        (i == 0  || self.yx_grid[i - 1][j]) &&
-                        (j == 20 || self.yx_grid[i][j + 1]) &&
-                        (j == 0  || self.yx_grid[i][j - 1]);
-                    
+                    let is_surrounded = (i == 20 || self.yx_grid[i + 1][j])
+                        && (i == 0 || self.yx_grid[i - 1][j])
+                        && (j == 20 || self.yx_grid[i][j + 1])
+                        && (j == 0 || self.yx_grid[i][j - 1]);
+
                     if is_surrounded {
                         // Reinforce: ensure this cell remains liquid (prevent evaporation/flow)
                         self.yx_grid[i][j] = true;
@@ -219,7 +222,7 @@ impl Screen {
                 }
             }
         }
-        
+
         // Update stability tracking for next iteration
         // Replace old stable cell tracking with newly calculated stable cells
         self.yx_lock_grid = temp_yx_lock_grid;
@@ -618,7 +621,7 @@ async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(config);
     let mut i2c: I2c<'static, I2C1, i2c::Async> =
         embassy_rp::i2c::I2c::new_async(p.I2C1, p.PIN_23, p.PIN_22, Irqs, Default::default());
-    let watchdog = Watchdog::new(p.WATCHDOG);
+    interrupt::free(|cs| WATCHDOG.borrow(cs).replace(Some(Watchdog::new(p.WATCHDOG))));
     let mut enable_accel = Output::new(p.PIN_29, Level::Low);
     let pio: embassy_rp::Peri<'static, PIO0> = p.PIO0; //this PIO object is one of the 4 PIO peripherals
     let dma_out_ref: embassy_rp::Peri<'static, DMA_CH0> = p.DMA_CH0;
@@ -663,14 +666,13 @@ async fn main(_spawner: Spawner) {
             ))
             .unwrap();
         spawner
-            .spawn(drive_screen(watchdog, screen, sm, dma_out_ref))
+            .spawn(drive_screen(screen, sm, dma_out_ref))
             .unwrap()
     });
 }
 
 #[embassy_executor::task(pool_size = 1)]
 async fn drive_screen(
-    mut watchdog: Watchdog,
     mut screen: Screen,
     mut sm: embassy_rp::pio::StateMachine<'static, PIO0, 0>,
     mut dma_out_ref: embassy_rp::Peri<'static, DMA_CH0>,
@@ -678,10 +680,13 @@ async fn drive_screen(
     let tx = sm.tx();
     let mut frame_count: u128 = 0;
     FRAME_DATA_SIGNAL.wait().await;
-    watchdog.start(Duration::from_millis(500));
     loop {
         Timer::after_millis(1).await;
-        watchdog.feed();
+        interrupt::free(|cs| {
+            if let Ok(mut watchdog) = WATCHDOG.borrow(cs).try_borrow_mut() {
+                watchdog.as_mut().map(|w| w.feed());
+            };
+        });
         if FRAME_DATA_SIGNAL.signaled() {
             screen.yx_grid = FRAME_DATA_SIGNAL.wait().await;
             frame_count = 0;
@@ -745,6 +750,14 @@ async fn monitor_accelerometer(
     let wake = int1.dormant_wake(dormant_config.clone());
     let wake2 = int2.dormant_wake(dormant_config.clone());
     embassy_rp::clocks::dormant_sleep();
+    interrupt::free(|cs| {
+        if let Ok(mut watchdog) = WATCHDOG.borrow(cs).try_borrow_mut() {
+            watchdog
+                .as_mut()
+                .map(|w| w.start(Duration::from_millis(500)));
+            //.start(Duration::from_millis(500));
+        };
+    });
     drop(wake);
     drop(wake2);
 
