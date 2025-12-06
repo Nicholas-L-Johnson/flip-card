@@ -14,7 +14,7 @@ a WASM simulator is also provided in the "sim_display" folder, which is what I u
 
 The implementation for the fluid simulation on the rp2350 is in the "flip-card_firmware" file
 
-further details can be found in each folder's README files
+further details can be found in each folder's README files, **see flashing instructions in the flip-card_firmware subfolder**
 
 ![alt text](media/PCB_3D.JPG)
 

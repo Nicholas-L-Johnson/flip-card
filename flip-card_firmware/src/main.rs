@@ -615,10 +615,10 @@ bind_interrupts!(struct Irqs {  //sets up the IRQ for the PIO, probably to pull 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     // define all the peripherals and pins
-    let mut config =
-        embassy_rp::config::Config::new(ClockConfig::system_freq(200_000_000).unwrap());
-    config.clocks.core_voltage = CoreVoltage::V1_15;
-    let p = embassy_rp::init(config);
+    // let mut config =
+        // embassy_rp::config::Config::new(ClockConfig::system_freq(200_000_000).unwrap());
+    // config.clocks.core_voltage = CoreVoltage::V1_15;
+    let p = embassy_rp::init(Default::default());
     let mut i2c: I2c<'static, I2C1, i2c::Async> =
         embassy_rp::i2c::I2c::new_async(p.I2C1, p.PIN_23, p.PIN_22, Irqs, Default::default());
     interrupt::free(|cs| WATCHDOG.borrow(cs).replace(Some(Watchdog::new(p.WATCHDOG))));
@@ -790,8 +790,8 @@ async fn monitor_accelerometer(
         if y_val > 10 {
             y_counter += 1;
             if y_counter > 1000 {
-                // embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
-                cortex_m::asm::udf();
+                embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
+                //cortex_m::asm::udf();
             }
         } else {
             if y_counter > 0 {
@@ -805,7 +805,7 @@ async fn monitor_accelerometer(
 
 #[embassy_executor::task]
 async fn simulation_update() {
-    let mut scene = Scene::setupScene(500);
+    let mut scene = Scene::setupScene(400);
     ACCEL_DATA_SIGNAL.wait().await;
     let mut frame_count = 0;
     let mut miss_count = 0;
@@ -819,7 +819,7 @@ async fn simulation_update() {
             if accel_measurment[1] > 1000.0 || accel_measurment[1] < -1000.0 {
                 shake_count += 100;
                 if shake_count > 400 {
-                    scene.particle_add(500, 500);
+                    scene.particle_add(400, 400);
                 }
             } else if shake_count > 0 {
                 shake_count -= 1;
@@ -829,7 +829,7 @@ async fn simulation_update() {
         }
         if frame_count > 1000 {
             if frame_count % 10 == 0 {
-                scene.particle_add(-1, 500);
+                scene.particle_add(-1, 400);
             }
         }
 
