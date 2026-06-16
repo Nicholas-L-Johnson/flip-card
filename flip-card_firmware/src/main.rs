@@ -784,14 +784,14 @@ async fn monitor_accelerometer(
         i2c.write_read_async(addr, [0x2B], &mut yh).await.unwrap(); // read accel data
         x_val = xh[0] as i8;
         y_val = yh[0] as i8;
-        normalized_x_accel = (0.7 * accel_scale_max * (x_val as f32) / 128.0) / dt;
-        normalized_y_accel = (0.7 * accel_scale_max * (y_val as f32) / 128.0) / dt;
+        normalized_x_accel = (15.0 * accel_scale_max * (x_val as f32) / 128.0);
+        normalized_y_accel = (15.0 * accel_scale_max * (y_val as f32) / 128.0);
 
         if y_val > 10 {
             y_counter += 1;
             if y_counter > 1000 {
-                embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
-                //cortex_m::asm::udf();
+                //embassy_rp::rom_data::reboot(0x0002, 1, 0x00, 0x01); // reboot to BOOTSEL
+                cortex_m::asm::udf();
             }
         } else {
             if y_counter > 0 {
@@ -805,7 +805,7 @@ async fn monitor_accelerometer(
 
 #[embassy_executor::task]
 async fn simulation_update() {
-    let mut scene = Scene::setupScene(400);
+    let mut scene = Scene::setupScene(250);
     ACCEL_DATA_SIGNAL.wait().await;
     let mut frame_count = 0;
     let mut miss_count = 0;
@@ -816,10 +816,10 @@ async fn simulation_update() {
         {
             miss_count = 0;
             scene.set_gravity(accel_measurment);
-            if accel_measurment[1] > 1000.0 || accel_measurment[1] < -1000.0 {
+            if accel_measurment[1] > 211.0 || accel_measurment[1] < -211.0 {
                 shake_count += 100;
                 if shake_count > 400 {
-                    scene.particle_add(400, 400);
+                    scene.particle_add(250, 250);
                 }
             } else if shake_count > 0 {
                 shake_count -= 1;
@@ -828,8 +828,8 @@ async fn simulation_update() {
             miss_count += 1
         }
         if frame_count > 1000 {
-            if frame_count % 10 == 0 {
-                scene.particle_add(-1, 400);
+            if frame_count % 60 == 0 {
+                scene.particle_add(-1, 250);
             }
         }
 

@@ -597,6 +597,7 @@ pub mod FluidSimulation {
                     self.particleRestDensity = sum / numFluidCells as f32;
                 }
             }
+	    self.particleDensity = d;
 
             // // for (var xi = 1; xi < this.fNumX; xi++) {
 
@@ -890,6 +891,12 @@ pub mod FluidSimulation {
                             f[i] /= d[i];
                         }
                     }
+		    
+		    if component == 0 {
+			self.u = f;
+		    } else {
+			self.v = f
+		    }
 
                     // // restore solid cells
 
@@ -1023,7 +1030,7 @@ pub mod FluidSimulation {
                         // this.u[right] += sx1 * p;
                         self.u[right] += sx1 * p;
                         // this.v[center] -= sy0 * p;
-                        self.u[center] += sy0 * p;
+                        self.v[center] -= sy0 * p;
                         // this.v[top] += sy1 * p;
                         self.v[top] += sy1 * p;
                     }
@@ -1069,7 +1076,6 @@ pub mod FluidSimulation {
                 self.solveIncompressibility(numPressureIters, sdt, overRelaxation, compensateDrift);
                 // // this.transferVelocities(false, flipRatio);
                 self.transferVelocities(false, flipRatio);
-                self.showParticles();
             }
 
             // }
@@ -1100,7 +1106,7 @@ pub mod FluidSimulation {
             // // dt : 1.0 / 120.0,
             // let dt = 1.0 / 120.0;
             // flipRatio : 0.9,
-            let flipRatio = 0.85;
+            let flipRatio = 0.95;
             // // numPressureIters : 100,
             // let numPressureIters = 100;
             // // numParticleIters : 2,
@@ -1166,6 +1172,19 @@ pub mod FluidSimulation {
             let mut fluid = FlipFluid::new(density, tankWidth, tankHeight, h, r, maxParticles);
 
             fluid.numParticles = particles;
+
+            let n = fluid.fNumY as usize;
+            for i in 0..fluid.fNumX as usize {
+                for j in 0..fluid.fNumY as usize {
+                    let s = if i == 0 || i == fluid.fNumX as usize -1 || j == 0 || j ==fluid.fNumY as usize - 1
+                    {
+                        0.0
+                    } else {
+                        1.0
+                    };
+                    fluid.s[i * n + j] = s;
+                }
+            }
 
             Scene {
                 xGravity,
@@ -1256,7 +1275,7 @@ pub mod FluidSimulation {
             for i in 1..22 {
                 for j in 1..22 {
                     if self.fluid.cellType[i * 23 + j] == CellType::FLUID_CELL {
-                        output_frame[i - 1][j - 1] = true;
+                        output_frame[j - 1][i - 1] = true;
                     }
                 }
             }
